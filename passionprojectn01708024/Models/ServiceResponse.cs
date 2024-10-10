@@ -2,7 +2,14 @@
 {
 	public class ServiceResponse
 	{
-		public enum ServiceStatus { NotFound, Created, Updated, Deleted, Error }
+		public enum ServiceStatus
+		{
+			NotFound,
+			Created,
+			Updated,
+			Deleted,
+			Error
+		}
 
 		public ServiceStatus Status { get; set; }
 		public int CreatedId { get; set; }

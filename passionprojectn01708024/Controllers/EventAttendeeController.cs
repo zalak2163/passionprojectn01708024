@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using passionprojectn01708024.Interfaces;
 using passionprojectn01708024.Models;
+using System.Threading.Tasks;
 
 namespace passionprojectn01708024.Controllers
 {
@@ -15,27 +16,37 @@ namespace passionprojectn01708024.Controllers
 			_eventAttendeeService = eventAttendeeService;
 		}
 
-		// POST: api/events/{eventId}/attendees/{attendeeId}/register
+		/// <summary>
+		/// Registers an attendee for a specific event.
+		/// </summary>
 		[HttpPost("{attendeeId}/register")]
-		public async Task<ActionResult> RegisterAttendee(int eventId, int attendeeId)
+		public async Task<ActionResult<EventAttendeeDto>> RegisterAttendee(int eventId, int attendeeId)
 		{
-			var serviceResponse = await _eventAttendeeService.RegisterAttendee(eventId, attendeeId);
-			if (serviceResponse.Status == ServiceResponse.ServiceStatus.NotFound)
+			var attendeeDto = new EventAttendeeDto
 			{
-				return NotFound();
+				EventId = eventId,
+				AttendeeId = attendeeId
+			};
+
+			var serviceResponse = await _eventAttendeeService.RegisterAttendee(attendeeDto);
+			if (serviceResponse.Status == ServiceResponse.ServiceStatus.Error)
+			{
+				return Conflict(serviceResponse.Messages); 
 			}
 
-			return CreatedAtAction(nameof(RegisterAttendee), new { eventId, attendeeId });
+			return CreatedAtAction(nameof(RegisterAttendee), new { eventId, attendeeId }, attendeeDto);
 		}
 
-		// POST: api/events/{eventId}/attendees/{attendeeId}/unregister
+		/// <summary>
+		/// Unregisters an attendee from a specific event.
+		/// </summary>
 		[HttpPost("{attendeeId}/unregister")]
 		public async Task<IActionResult> UnregisterAttendee(int eventId, int attendeeId)
 		{
 			var serviceResponse = await _eventAttendeeService.UnregisterAttendee(eventId, attendeeId);
 			if (serviceResponse.Status == ServiceResponse.ServiceStatus.NotFound)
 			{
-				return NotFound();
+				return NotFound(serviceResponse.Messages);
 			}
 
 			return NoContent();

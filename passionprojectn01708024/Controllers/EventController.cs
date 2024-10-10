@@ -3,88 +3,60 @@ using passionprojectn01708024.Interfaces;
 using passionprojectn01708024.Models;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EventManagementSystem.Services;
 
-namespace passionprojectn01708024.Controllers
+
+namespace EventManagementSystem.Controllers
 {
-	[Route("api/[controller]")]
 	[ApiController]
+	[Route("api/[controller]")]
 	public class EventController : ControllerBase
 	{
-		private readonly IEventService _eventService;
+		private readonly EventService _eventService;
 
-		public EventController(IEventService eventService)
+		public EventController(EventService eventService)
 		{
 			_eventService = eventService;
 		}
 
-		// GET: api/event
 		[HttpGet]
-		public async Task<ActionResult<IEnumerable<EventDto>>> GetEvents()
+		public async Task<IActionResult> GetAllEvents()
 		{
-			var events = await _eventService.ListEvents();
+			var events = await _eventService.GetAllEventsAsync();
 			return Ok(events);
 		}
 
-		// GET: api/event/{id}
 		[HttpGet("{id}")]
-		public async Task<ActionResult<EventDto>> GetEvent(int id)
+		public async Task<IActionResult> GetEventById(int id)
 		{
-			var eventDto = await _eventService.FindEvent(id);
-			if (eventDto == null)
-			{
-				return NotFound();
-			}
+			var eventEntity = await _eventService.GetEventByIdAsync(id);
+			if (eventEntity == null) return NotFound();
 
-			return Ok(eventDto);
+			return Ok(eventEntity);
 		}
 
-		// PUT: api/event
-		[HttpPut]
-		public async Task<ActionResult> UpdateEvent([FromBody] EventDto eventDto)
+		[HttpPost]
+		public async Task<IActionResult> CreateEvent([FromBody] EventDto newEvent)
 		{
-			var serviceResponse = await _eventService.UpdateEvent(eventDto);
-			if (serviceResponse.Status == ServiceResponse.ServiceStatus.Error)
-			{
-				return BadRequest(serviceResponse.Messages);
-			}
+			await _eventService.CreateEventAsync(newEvent);
+			return CreatedAtAction(nameof(GetEventById), new { id = newEvent.EventId }, newEvent);
+		}
+
+		[HttpPut("{id}")]
+		public async Task<IActionResult> UpdateEvent(int id, [FromBody] EventDto updatedEvent)
+		{
+			if (id != updatedEvent.EventId) return BadRequest();
+
+			await _eventService.UpdateEventAsync(updatedEvent);
 			return NoContent();
 		}
 
-		// DELETE: api/event/{id}
 		[HttpDelete("{id}")]
 		public async Task<IActionResult> DeleteEvent(int id)
 		{
-			var serviceResponse = await _eventService.DeleteEvent(id);
-			if (serviceResponse.Status == ServiceResponse.ServiceStatus.NotFound)
-			{
-				return NotFound();
-			}
-
+			await _eventService.DeleteEventAsync(id);
 			return NoContent();
-		}
-
-		// POST: api/event/{eventId}/attendees/{attendeeId}/register
-		[HttpPost("{eventId}/attendees/{attendeeId}/register")]
-		public async Task<IActionResult> RegisterAttendee(int eventId, int attendeeId)
-		{
-			var serviceResponse = await _eventService.RegisterAttendeeToEvent(eventId, attendeeId);
-			if (serviceResponse.Status == ServiceResponse.ServiceStatus.Created)
-			{
-				return NoContent();
-			}
-			return NotFound();
-		}
-
-		// POST: api/event/{eventId}/attendees/{attendeeId}/unregister
-		[HttpPost("{eventId}/attendees/{attendeeId}/unregister")]
-		public async Task<IActionResult> UnregisterAttendee(int eventId, int attendeeId)
-		{
-			var serviceResponse = await _eventService.UnregisterAttendeeFromEvent(eventId, attendeeId);
-			if (serviceResponse.Status == ServiceResponse.ServiceStatus.Deleted)
-			{
-				return NoContent();
-			}
-			return NotFound();
 		}
 	}
 }
+

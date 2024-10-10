@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using passionprojectn01708024.Data;
@@ -16,9 +17,15 @@ namespace passionprojectn01708024.Services
 			_context = context;
 		}
 
-		public async Task<IEnumerable<Attendee>> GetAttendeesAsync()
+		public async Task<IEnumerable<AttendeeDto>> GetAttendeesAsync()
 		{
-			return await _context.Attendees.ToListAsync();
+			return await _context.Attendees
+				.Select(a => new AttendeeDto
+				{
+					AttendeeId = a.AttendeeId,
+					Name = a.Name,
+					Email = a.Email
+				}).ToListAsync();
 		}
 
 		public async Task<Attendee?> GetAttendeeAsync(int id)
@@ -63,24 +70,38 @@ namespace passionprojectn01708024.Services
 			return serviceResponse;
 		}
 
-		public async Task<ServiceResponse> RegisterForEventAsync(int attendeeId, int eventId)
+		public async Task<ServiceResponse> RegisterAttendee(int attendeeId, int eventId)
 		{
 			var serviceResponse = new ServiceResponse();
-			// Logic to register attendee for event goes here
-			// e.g., _context.EventAttendees.Add(new EventAttendee { EventId = eventId, AttendeeId = attendeeId });
+			var attendee = await _context.Attendees.FindAsync(attendeeId);
+			var eventEntity = await _context.Events.FindAsync(eventId);
 
+			if (attendee == null || eventEntity == null)
+			{
+				serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
+				return serviceResponse;
+			}
+
+			var eventAttendee = new EventAttendee { EventId = eventId, AttendeeId = attendeeId };
+			_context.EventAttendees.Add(eventAttendee);
 			await _context.SaveChangesAsync();
 			serviceResponse.Status = ServiceResponse.ServiceStatus.Created;
 			return serviceResponse;
 		}
 
-		public async Task<ServiceResponse> UnregisterFromEventAsync(int attendeeId, int eventId)
+		public async Task<ServiceResponse> UnregisterAttendee(int attendeeId, int eventId)
 		{
 			var serviceResponse = new ServiceResponse();
-			// Logic to unregister attendee from event goes here
-			// e.g., var attendee = _context.EventAttendees.FirstOrDefault(...);
-			// if (attendee != null) { _context.EventAttendees.Remove(attendee); }
+			var eventAttendee = await _context.EventAttendees
+				.FirstOrDefaultAsync(ea => ea.AttendeeId == attendeeId && ea.EventId == eventId);
 
+			if (eventAttendee == null)
+			{
+				serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
+				return serviceResponse;
+			}
+
+			_context.EventAttendees.Remove(eventAttendee);
 			await _context.SaveChangesAsync();
 			serviceResponse.Status = ServiceResponse.ServiceStatus.Deleted;
 			return serviceResponse;

@@ -1,65 +1,77 @@
-﻿using passionprojectn01708024.Interfaces;
+﻿using passionprojectn01708024.Data;
+using passionprojectn01708024.Interfaces;
 using passionprojectn01708024.Models;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
-namespace passionprojectn01708024.Services
+public class EventAttendeeService : IEventAttendeeService
 {
-	public class EventAttendeeService : IEventAttendeeService
+	private readonly ApplicationDbContext _context;
+
+	public EventAttendeeService(ApplicationDbContext context)
 	{
-		private readonly List<EventAttendeeDto> _attendees = new();
+		_context = context;
+	}
 
-		public async Task<IEnumerable<EventAttendeeDto>> ListAttendeesForEvent(int eventId)
+	public async Task<IEnumerable<EventAttendeeDto>> ListAttendeesForEvent(int eventId)
+	{
+		var attendees = await _context.EventAttendees
+			.Where(ea => ea.EventId == eventId)
+			.Include(ea => ea.Attendee)
+			.Select(ea => new EventAttendeeDto
+			{
+				EventId = ea.EventId,
+				AttendeeId = ea.AttendeeId
+			})
+			.ToListAsync();
+
+		return attendees;
+	}
+
+	public async Task<ServiceResponse> RegisterAttendee(EventAttendeeDto attendeeDto)
+	{
+		var response = new ServiceResponse();
+
+		if (_context.EventAttendees.Any(a => a.EventId == attendeeDto.EventId && a.AttendeeId == attendeeDto.AttendeeId))
 		{
-			return await Task.FromResult(_attendees.Where(a => a.EventId == eventId).ToList());
+			response.Status = ServiceResponse.ServiceStatus.Error;
+			response.Messages.Add("Attendee is already registered.");
+		}
+		else
+		{
+			var eventAttendee = new EventAttendee
+			{
+				EventId = attendeeDto.EventId,
+				AttendeeId = attendeeDto.AttendeeId
+			};
+			_context.EventAttendees.Add(eventAttendee);
+			await _context.SaveChangesAsync();
+			response.Status = ServiceResponse.ServiceStatus.Created;
+			response.CreatedId = eventAttendee.EventId; // Or use attendeeId if needed
+			response.Messages.Add("Attendee registered successfully.");
 		}
 
-		public async Task<EventAttendeeDto?> GetAttendeeRegistration(int eventId, int attendeeId)
+		return response;
+	}
+
+	public async Task<ServiceResponse> UnregisterAttendee(int eventId, int attendeeId)
+	{
+		var response = new ServiceResponse();
+
+		var eventAttendee = await _context.EventAttendees
+			.FirstOrDefaultAsync(ea => ea.EventId == eventId && ea.AttendeeId == attendeeId);
+		if (eventAttendee != null)
 		{
-			return await Task.FromResult(_attendees.FirstOrDefault(a => a.EventId == eventId && a.AttendeeId == attendeeId));
+			_context.EventAttendees.Remove(eventAttendee);
+			await _context.SaveChangesAsync();
+			response.Status = ServiceResponse.ServiceStatus.Deleted;
+			response.Messages.Add("Attendee unregistered successfully.");
+		}
+		else
+		{
+			response.Status = ServiceResponse.ServiceStatus.NotFound;
+			response.Messages.Add("Attendee not found.");
 		}
 
-		public async Task<ServiceResponse> RegisterAttendee(int eventId, int attendeeId)
-		{
-			var response = new ServiceResponse();
-
-			// Example registration logic
-			if (_attendees.Any(a => a.EventId == eventId && a.AttendeeId == attendeeId))
-			{
-				response.Status = ServiceResponse.ServiceStatus.Error;
-				response.Messages.Add("Attendee is already registered.");
-			}
-			else
-			{
-				_attendees.Add(new EventAttendeeDto { EventId = eventId, AttendeeId = attendeeId });
-				response.Status = ServiceResponse.ServiceStatus.Created;
-				response.CreatedId = attendeeId; // Assuming attendeeId represents the created attendee
-				response.Messages.Add("Attendee registered successfully.");
-			}
-
-			return await Task.FromResult(response);
-		}
-
-		public async Task<ServiceResponse> UnregisterAttendee(int eventId, int attendeeId)
-		{
-			var response = new ServiceResponse();
-
-			// Example unregistration logic
-			var attendee = _attendees.FirstOrDefault(a => a.EventId == eventId && a.AttendeeId == attendeeId);
-			if (attendee != null)
-			{
-				_attendees.Remove(attendee);
-				response.Status = ServiceResponse.ServiceStatus.Deleted;
-				response.Messages.Add("Attendee unregistered successfully.");
-			}
-			else
-			{
-				response.Status = ServiceResponse.ServiceStatus.NotFound;
-				response.Messages.Add("Attendee not found.");
-			}
-
-			return await Task.FromResult(response);
-		}
+		return response;
 	}
 }

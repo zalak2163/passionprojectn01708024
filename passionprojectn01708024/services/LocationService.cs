@@ -16,19 +16,42 @@ namespace passionprojectn01708024.Services
 			_context = context;
 		}
 
-		public async Task<IEnumerable<Location>> GetLocationsAsync()
+		public async Task<IEnumerable<LocationDto>> GetLocationsAsync()
 		{
-			return await _context.Locations.ToListAsync();
+			var locations = await _context.Locations.ToListAsync();
+			return locations.Select(location => new LocationDto
+			{
+				LocationId = location.LocationId,
+				LocationName = location.LocationName,
+				Address = location.Address,
+				Capacity = location.Capacity
+			}).ToList();
 		}
 
-		public async Task<Location?> GetLocationAsync(int id)
+		public async Task<LocationDto?> GetLocationAsync(int id)
 		{
-			return await _context.Locations.FindAsync(id);
+			var location = await _context.Locations.FindAsync(id);
+			if (location == null) return null;
+
+			return new LocationDto
+			{
+				LocationId = location.LocationId,
+				LocationName = location.LocationName,
+				Address = location.Address,
+				Capacity = location.Capacity
+			};
 		}
 
-		public async Task<ServiceResponse> AddOrUpdateLocationAsync(Location location)
+		public async Task<ServiceResponse> AddOrUpdateLocationAsync(LocationDto locationDto)
 		{
 			var serviceResponse = new ServiceResponse();
+			var location = new Location
+			{
+				LocationId = locationDto.LocationId,
+				LocationName = locationDto.LocationName,
+				Address = locationDto.Address,
+				Capacity = locationDto.Capacity
+			};
 
 			if (location.LocationId == 0)
 			{

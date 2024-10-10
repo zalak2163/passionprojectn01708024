@@ -9,7 +9,9 @@ namespace passionprojectn01708024.Models
 		public string LocationName { get; set; }
 		public string Address { get; set; }
 		public int Capacity { get; set; }
-		public ICollection<Event>? Events { get; set; }
+
+		// Navigation property for events held at the location
+		public virtual ICollection<Event> Events { get; set; }
 	}
 
 	public class LocationDto

@@ -1,14 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore;
-using passionprojectn01708024.Data;
-using passionprojectn01708024.Interfaces;
-using passionprojectn01708024.Models;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using passionprojectn01708024.Data;
+using passionprojectn01708024.Models;
+using passionprojectn01708024.Services;
 
-namespace passionprojectn01708024.Services
+
+namespace EventManagementSystem.Services
 {
-	public class EventService : IEventService
+	public class EventService
 	{
 		private readonly ApplicationDbContext _context;
 
@@ -17,35 +18,31 @@ namespace passionprojectn01708024.Services
 			_context = context;
 		}
 
-		public async Task<IEnumerable<EventDto>> ListEvents()
+		public async Task<IEnumerable<EventDto>> GetAllEventsAsync()
 		{
-			var events = await _context.Events
+			return await _context.Events
 				.Include(e => e.Location)
-				.Include(e => e.EventAttendees)
-				.ToListAsync();
-
-			return events.Select(e => new EventDto
-			{
-				EventId = e.EventId,
-				EventName = e.EventName,
-				Date = e.Date,
-				Description = e.Description,
-				LocationId = e.LocationId,
-				// Add other necessary properties from Location and EventAttendees as needed
-			}).ToList();
+				.Include(e => e.Attendees)
+				.Select(e => new EventDto
+				{
+					EventId = e.EventId,
+					EventName = e.EventName,
+					Date = e.Date,
+					Description = e.Description,
+					LocationId = e.LocationId,
+					AttendeeIds = e.Attendees.Select(a => a.AttendeeId).ToList()
+				}).ToListAsync();
 		}
 
-		public async Task<EventDto?> FindEvent(int id)
+		public async Task<EventDto> GetEventByIdAsync(int id)
 		{
 			var eventEntity = await _context.Events
 				.Include(e => e.Location)
-				.Include(e => e.EventAttendees)
+				.Include(e => e.Attendees)
+				.ThenInclude(a => a.Attendee)
 				.FirstOrDefaultAsync(e => e.EventId == id);
 
-			if (eventEntity == null)
-			{
-				return null;
-			}
+			if (eventEntity == null) return null;
 
 			return new EventDto
 			{
@@ -54,183 +51,61 @@ namespace passionprojectn01708024.Services
 				Date = eventEntity.Date,
 				Description = eventEntity.Description,
 				LocationId = eventEntity.LocationId,
-				// Add other necessary properties as needed
+				AttendeeIds = eventEntity.Attendees.Select(a => a.AttendeeId).ToList()
 			};
 		}
 
-		public async Task<ServiceResponse> UpdateEvent(EventDto eventDto)
+		public async Task CreateEventAsync(EventDto newEventDto)
 		{
-			var serviceResponse = new ServiceResponse();
-
-			var eventEntity = new Event
+			var newEvent = new Event
 			{
-				EventId = eventDto.EventId,
-				EventName = eventDto.EventName,
-				Date = eventDto.Date,
-				Description = eventDto.Description,
-				LocationId = eventDto.LocationId,
-				// Map other necessary properties as needed
+				EventName = newEventDto.EventName,
+				Date = newEventDto.Date,
+				Description = newEventDto.Description,
+				LocationId = newEventDto.LocationId,
+				Attendees = new List<EventAttendee>()
 			};
 
-			_context.Entry(eventEntity).State = EntityState.Modified;
-
-			try
+			foreach (var attendeeId in newEventDto.AttendeeIds)
 			{
-				await _context.SaveChangesAsync();
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Updated;
-			}
-			catch (DbUpdateConcurrencyException)
-			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-				serviceResponse.Messages.Add("An error occurred updating the record.");
+				newEvent.Attendees.Add(new EventAttendee { AttendeeId = attendeeId });
 			}
 
-			return serviceResponse;
+			_context.Events.Add(newEvent);
+			await _context.SaveChangesAsync();
 		}
 
-		public async Task<ServiceResponse> AddEvent(EventDto eventDto)
+		public async Task UpdateEventAsync(EventDto updatedEventDto)
 		{
-			var serviceResponse = new ServiceResponse();
-
-			var eventEntity = new Event
-			{
-				EventName = eventDto.EventName,
-				Date = eventDto.Date,
-				Description = eventDto.Description,
-				LocationId = eventDto.LocationId,
-				// Map other necessary properties as needed
-			};
-
-			try
-			{
-				_context.Events.Add(eventEntity);
-				await _context.SaveChangesAsync();
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Created;
-				serviceResponse.CreatedId = eventEntity.EventId;
-			}
-			catch (Exception ex)
-			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-				serviceResponse.Messages.Add("There was an error adding the event.");
-				serviceResponse.Messages.Add(ex.Message);
-			}
-
-			return serviceResponse;
-		}
-
-		public async Task<ServiceResponse> DeleteEvent(int id)
-		{
-			var serviceResponse = new ServiceResponse();
-			var eventEntity = await _context.Events.FindAsync(id);
-
-			if (eventEntity == null)
-			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-				serviceResponse.Messages.Add("Event cannot be deleted because it does not exist.");
-				return serviceResponse;
-			}
-
-			try
-			{
-				_context.Events.Remove(eventEntity);
-				await _context.SaveChangesAsync();
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Deleted;
-			}
-			catch (Exception ex)
-			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-				serviceResponse.Messages.Add("Error encountered while deleting the event.");
-				serviceResponse.Messages.Add(ex.Message);
-			}
-
-			return serviceResponse;
-		}
-
-		public async Task<IEnumerable<EventDto>> ListEventsForAttendee(int attendeeId)
-		{
-			var events = await _context.Events
-				.Where(e => e.EventAttendees.Any(a => a.AttendeeId == attendeeId))
-				.ToListAsync();
-
-			return events.Select(e => new EventDto
-			{
-				EventId = e.EventId,
-				EventName = e.EventName,
-				Date = e.Date,
-				Description = e.Description,
-				LocationId = e.LocationId,
-				// Add other necessary properties as needed
-			}).ToList();
-		}
-
-		public async Task<ServiceResponse> RegisterAttendeeToEvent(int eventId, int attendeeId)
-		{
-			var serviceResponse = new ServiceResponse();
-
 			var eventEntity = await _context.Events
-				.Include(e => e.EventAttendees)
-				.FirstOrDefaultAsync(e => e.EventId == eventId);
-			var attendee = await _context.Attendees.FindAsync(attendeeId);
+				.Include(e => e.Attendees)
+				.FirstOrDefaultAsync(e => e.EventId == updatedEventDto.EventId);
 
-			if (eventEntity == null || attendee == null)
+			if (eventEntity == null) return;
+
+			eventEntity.EventName = updatedEventDto.EventName;
+			eventEntity.Date = updatedEventDto.Date;
+			eventEntity.Description = updatedEventDto.Description;
+			eventEntity.LocationId = updatedEventDto.LocationId;
+
+			// Update attendees
+			eventEntity.Attendees.Clear();
+			foreach (var attendeeId in updatedEventDto.AttendeeIds)
 			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-				if (eventEntity == null) serviceResponse.Messages.Add("Event not found.");
-				if (attendee == null) serviceResponse.Messages.Add("Attendee not found.");
-				return serviceResponse;
+				eventEntity.Attendees.Add(new EventAttendee { AttendeeId = attendeeId });
 			}
 
-			try
-			{
-				eventEntity.EventAttendees.Add(new EventAttendee { EventId = eventId, AttendeeId = attendeeId });
-				await _context.SaveChangesAsync();
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Created;
-			}
-			catch (Exception ex)
-			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-				serviceResponse.Messages.Add("There was an issue registering the attendee to the event.");
-				serviceResponse.Messages.Add(ex.Message);
-			}
-
-			return serviceResponse;
+			await _context.SaveChangesAsync();
 		}
 
-		public async Task<ServiceResponse> UnregisterAttendeeFromEvent(int eventId, int attendeeId)
+		public async Task DeleteEventAsync(int id)
 		{
-			var serviceResponse = new ServiceResponse();
-
-			var eventEntity = await _context.Events
-				.Include(e => e.EventAttendees)
-				.FirstOrDefaultAsync(e => e.EventId == eventId);
-			var attendee = await _context.Attendees.FindAsync(attendeeId);
-
-			if (eventEntity == null || attendee == null)
+			var eventToDelete = await _context.Events.FindAsync(id);
+			if (eventToDelete != null)
 			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-				if (eventEntity == null) serviceResponse.Messages.Add("Event not found.");
-				if (attendee == null) serviceResponse.Messages.Add("Attendee not found.");
-				return serviceResponse;
+				_context.Events.Remove(eventToDelete);
+				await _context.SaveChangesAsync();
 			}
-
-			try
-			{
-				var eventAttendee = eventEntity.EventAttendees.FirstOrDefault(a => a.AttendeeId == attendeeId);
-				if (eventAttendee != null)
-				{
-					eventEntity.EventAttendees.Remove(eventAttendee);
-					await _context.SaveChangesAsync();
-					serviceResponse.Status = ServiceResponse.ServiceStatus.Deleted;
-				}
-			}
-			catch (Exception ex)
-			{
-				serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-				serviceResponse.Messages.Add("There was an issue unregistering the attendee from the event.");
-				serviceResponse.Messages.Add(ex.Message);
-			}
-
-			return serviceResponse;
 		}
 	}
 }

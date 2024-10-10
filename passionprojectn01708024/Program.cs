@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using passionprojectn01708024.Data;
-using passionprojectn01708024.Interfaces; // Your interfaces
-using passionprojectn01708024.Services; // Your services
+using passionprojectn01708024.Interfaces; 
+using passionprojectn01708024.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +17,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Add ASP.NET Core Identity
 builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 {
-	options.SignIn.RequireConfirmedAccount = true; // Adjust according to your needs
+	options.SignIn.RequireConfirmedAccount = true; 
 })
 .AddEntityFrameworkStores<ApplicationDbContext>();
 
